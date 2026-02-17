@@ -1024,14 +1024,27 @@
 
             // Calculate success rate (not broke at end, conditional on being alive)
             const finalYear = percentiles[percentiles.length - 1];
+            
+            // Debug: Check if we have valid data
+            if (!finalYear || finalYear.p50 === undefined) {
+                console.error('Final year data is invalid:', finalYear);
+                document.getElementById('successRate').textContent = 'Error';
+                document.getElementById('withdrawalRate').textContent = 'Error';
+                document.getElementById('medianBalance').textContent = 'Error';
+                return;
+            }
+            
             const brokeAtEnd = finalYear.brokeNorm;
             const successRate = ((1 - brokeAtEnd) * 100).toFixed(1);
             const withdrawalRate = ((spending / savings) * 100).toFixed(2);
+            
+            // Display median balance
+            const medianBalance = finalYear.p50;
 
             // Update stats
             document.getElementById('successRate').textContent = successRate + '%';
             document.getElementById('withdrawalRate').textContent = withdrawalRate + '%';
-            document.getElementById('medianBalance').textContent = formatNumber(finalYear.p50);
+            document.getElementById('medianBalance').textContent = formatNumber(medianBalance);
 
             // Render chart
             renderChart(percentiles, savings);
