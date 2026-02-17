@@ -840,13 +840,9 @@
             const results = [];
 
             // Calculate portfolio expected real return based on user input and asset allocation
-            // We'll adjust the mean returns to match user's expected return
-            const historicalPortfolioReal = stocks * (historicalReturns.stocks.mean - historicalReturns.inflation.mean) + 
-                                           bonds * (historicalReturns.bonds.mean - historicalReturns.inflation.mean) + 
-                                           cash * (historicalReturns.cash.mean - historicalReturns.inflation.mean);
+            // User enters expected REAL return (above inflation)
+            // We need to generate nominal returns and subtract inflation
             
-            const returnAdjustment = expectedReturn - historicalPortfolioReal;
-
             for (let sim = 0; sim < numSimulations; sim++) {
                 let balance = savings;
                 let yearlyBalances = [balance];
@@ -855,41 +851,51 @@
                 for (let year = 0; year < years; year++) {
                     const age = retirementAge + year;
 
-                    // Calculate returns with user's expected return adjustment
-                    const stockReturn = randomNormal(historicalReturns.stocks.mean + returnAdjustment, historicalReturns.stocks.stdDev);
-                    const bondReturn = randomNormal(historicalReturns.bonds.mean + returnAdjustment * 0.5, historicalReturns.bonds.stdDev);
-                    const cashReturn = randomNormal(historicalReturns.cash.mean + returnAdjustment * 0.2, historicalReturns.cash.stdDev);
+                    // Generate random inflation for this year
                     const inflation = randomNormal(historicalReturns.inflation.mean, historicalReturns.inflation.stdDev);
-
-                    const portfolioReturn = (stocks * stockReturn + bonds * bondReturn + cash * cashReturn) - fees;
-
-                    // Calculate spending with flexibility
-                    let currentSpending = spending * Math.pow(1 + inflation, year);
                     
-                    // Apply flexibility if below threshold
-                    if (balance < initialBalance * threshold * Math.pow(1 + inflation, year)) {
+                    // Generate nominal returns with historical volatility
+                    // We'll adjust the mean to achieve the user's expected REAL return
+                    const stockReturn = randomNormal(historicalReturns.stocks.mean, historicalReturns.stocks.stdDev);
+                    const bondReturn = randomNormal(historicalReturns.bonds.mean, historicalReturns.bonds.stdDev);
+                    const cashReturn = randomNormal(historicalReturns.cash.mean, historicalReturns.cash.stdDev);
+                    
+                    // Calculate nominal portfolio return
+                    const nominalPortfolioReturn = (stocks * stockReturn + bonds * bondReturn + cash * cashReturn) - fees;
+                    
+                    // Convert to real return (this is what matters for purchasing power)
+                    const realPortfolioReturn = (1 + nominalPortfolioReturn) / (1 + inflation) - 1;
+                    
+                    // Adjust to match user's expected real return (shift the distribution)
+                    const adjustedRealReturn = realPortfolioReturn + (expectedReturn - 0.05); // 5% is baseline real return
+                    
+                    // Calculate spending (in today's dollars - we'll adjust balance by real returns)
+                    let currentSpending = spending;
+                    
+                    // Apply flexibility if below threshold (in real terms)
+                    if (balance < initialBalance * threshold) {
                         currentSpending *= (1 - flexibility);
                     }
 
-                    // Add income streams
+                    // Add income streams (in today's dollars)
                     incomeStreams.forEach(stream => {
                         if (age >= stream.startAge && age <= stream.endAge) {
-                            currentSpending -= stream.amount * Math.pow(1 + inflation, year - (stream.startAge - retirementAge));
+                            currentSpending -= stream.amount;
                         }
                     });
 
-                    // Add expense streams
+                    // Add expense streams (in today's dollars)
                     expenseStreams.forEach(stream => {
                         if (age >= stream.startAge && age <= stream.endAge) {
-                            currentSpending += stream.amount * Math.pow(1 + inflation, year - (stream.startAge - retirementAge));
+                            currentSpending += stream.amount;
                         }
                     });
 
                     // Apply taxes
                     const withdrawal = currentSpending / (1 - taxRate);
 
-                    // Update balance
-                    balance = balance * (1 + portfolioReturn) - withdrawal;
+                    // Update balance using REAL return (automatically maintains purchasing power)
+                    balance = balance * (1 + adjustedRealReturn) - withdrawal;
 
                     yearlyBalances.push(Math.max(0, balance));
 
