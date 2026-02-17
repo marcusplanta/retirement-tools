@@ -422,10 +422,11 @@
         <header>
             <h1>Can You Retire?</h1>
             <p class="subtitle" style="max-width: 900px; margin: 0 auto; line-height: 1.8;">
-                This Monte Carlo retirement calculator runs <strong>1,000 simulations</strong> of your retirement using historical market data from 1871-2024. 
+                This Monte Carlo retirement calculator runs <strong>10,000 simulations</strong> of your retirement using historical market data from 1871-2024. 
                 It models stock, bond, and cash returns with realistic volatility and inflation, then shows the probability of different outcomes over your retirement years. 
                 The chart visualizes your chances of running out of money (red), maintaining your savings (yellow/green), or growing your wealth (dark green), 
-                alongside actuarial mortality probabilities (gray). Each year's probabilities sum to 100%, giving you a complete picture of your retirement outlook.
+                alongside actuarial mortality probabilities (gray). <strong>Toggle "Show Mortality"</strong> to switch between viewing all outcomes including death (default), 
+                or normalized financial outcomes that always sum to 100% (conditional on survival).
             </p>
         </header>
 
@@ -593,10 +594,16 @@
 
                 <!-- Chart -->
                 <div class="card">
-                    <div class="card-header">Probability Analysis</div>
+                    <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
+                        <span>Probability Analysis</span>
+                        <label style="display: inline-flex; align-items: center; gap: 0.5rem; font-weight: normal; margin: 0; cursor: pointer; font-size: 0.9rem;">
+                            <input type="checkbox" id="showMortality" checked onchange="toggleMortality()" style="cursor: pointer;">
+                            <span>Show Mortality</span>
+                        </label>
+                    </div>
                     <div id="chart"></div>
                     <div class="help-text" style="margin-top: 1rem;">
-                        This chart shows the probability of different portfolio outcomes over your retirement years, including the likelihood of mortality. Green indicates success, red indicates running out of money, and gray shows probability of death.
+                        This chart shows the probability of different portfolio outcomes over your retirement years. Green indicates wealth growth, yellow shows portfolio decline, red indicates running out of money, and gray shows probability of death. Toggle mortality to see financial outcomes normalized to 100%.
                     </div>
                 </div>
             </div>
@@ -652,15 +659,62 @@
             inflation: { mean: 0.031, stdDev: 0.05 }
         };
 
-        // Mortality tables (simplified SSA data)
+        // Mortality tables (SSA 2022 Period Life Table data)
+        // Death probability = probability of dying within one year
         const mortalityTables = {
             male: [
-                { age: 40, prob: 0.001 }, { age: 50, prob: 0.005 }, { age: 60, prob: 0.012 },
-                { age: 70, prob: 0.025 }, { age: 80, prob: 0.065 }, { age: 90, prob: 0.150 }
+                { age: 40, prob: 0.003353 }, { age: 41, prob: 0.003499 }, { age: 42, prob: 0.003642 },
+                { age: 43, prob: 0.003811 }, { age: 44, prob: 0.003996 }, { age: 45, prob: 0.004175 },
+                { age: 46, prob: 0.004388 }, { age: 47, prob: 0.004666 }, { age: 48, prob: 0.004973 },
+                { age: 49, prob: 0.005305 }, { age: 50, prob: 0.005666 }, { age: 51, prob: 0.006069 },
+                { age: 52, prob: 0.006539 }, { age: 53, prob: 0.007073 }, { age: 54, prob: 0.007675 },
+                { age: 55, prob: 0.008348 }, { age: 56, prob: 0.009051 }, { age: 57, prob: 0.009822 },
+                { age: 58, prob: 0.010669 }, { age: 59, prob: 0.011548 }, { age: 60, prob: 0.012458 },
+                { age: 61, prob: 0.013403 }, { age: 62, prob: 0.014450 }, { age: 63, prob: 0.015571 },
+                { age: 64, prob: 0.016737 }, { age: 65, prob: 0.017897 }, { age: 66, prob: 0.019017 },
+                { age: 67, prob: 0.020213 }, { age: 68, prob: 0.021569 }, { age: 69, prob: 0.023088 },
+                { age: 70, prob: 0.024828 }, { age: 71, prob: 0.026705 }, { age: 72, prob: 0.028761 },
+                { age: 73, prob: 0.031116 }, { age: 74, prob: 0.033861 }, { age: 75, prob: 0.037088 },
+                { age: 76, prob: 0.041126 }, { age: 77, prob: 0.045241 }, { age: 78, prob: 0.049793 },
+                { age: 79, prob: 0.054768 }, { age: 80, prob: 0.060660 }, { age: 81, prob: 0.067027 },
+                { age: 82, prob: 0.073999 }, { age: 83, prob: 0.081737 }, { age: 84, prob: 0.090458 },
+                { age: 85, prob: 0.100525 }, { age: 86, prob: 0.111793 }, { age: 87, prob: 0.124494 },
+                { age: 88, prob: 0.138398 }, { age: 89, prob: 0.153207 }, { age: 90, prob: 0.169704 },
+                { age: 91, prob: 0.187963 }, { age: 92, prob: 0.208395 }, { age: 93, prob: 0.230808 },
+                { age: 94, prob: 0.253914 }, { age: 95, prob: 0.277402 }, { age: 96, prob: 0.300882 },
+                { age: 97, prob: 0.324326 }, { age: 98, prob: 0.347332 }, { age: 99, prob: 0.369430 },
+                { age: 100, prob: 0.391927 }, { age: 101, prob: 0.414726 }, { age: 102, prob: 0.437722 },
+                { age: 103, prob: 0.460800 }, { age: 104, prob: 0.483840 }, { age: 105, prob: 0.508032 },
+                { age: 106, prob: 0.533434 }, { age: 107, prob: 0.560105 }, { age: 108, prob: 0.588111 },
+                { age: 109, prob: 0.617516 }, { age: 110, prob: 0.648392 }, { age: 115, prob: 0.827531 },
+                { age: 119, prob: 1.000000 }
             ],
             female: [
-                { age: 40, prob: 0.0007 }, { age: 50, prob: 0.003 }, { age: 60, prob: 0.008 },
-                { age: 70, prob: 0.018 }, { age: 80, prob: 0.050 }, { age: 90, prob: 0.130 }
+                { age: 40, prob: 0.001803 }, { age: 41, prob: 0.001905 }, { age: 42, prob: 0.002009 },
+                { age: 43, prob: 0.002116 }, { age: 44, prob: 0.002223 }, { age: 45, prob: 0.002352 },
+                { age: 46, prob: 0.002516 }, { age: 47, prob: 0.002712 }, { age: 48, prob: 0.002936 },
+                { age: 49, prob: 0.003177 }, { age: 50, prob: 0.003407 }, { age: 51, prob: 0.003642 },
+                { age: 52, prob: 0.003917 }, { age: 53, prob: 0.004238 }, { age: 54, prob: 0.004619 },
+                { age: 55, prob: 0.005040 }, { age: 56, prob: 0.005493 }, { age: 57, prob: 0.005987 },
+                { age: 58, prob: 0.006509 }, { age: 59, prob: 0.007067 }, { age: 60, prob: 0.007658 },
+                { age: 61, prob: 0.008305 }, { age: 62, prob: 0.008991 }, { age: 63, prob: 0.009681 },
+                { age: 64, prob: 0.010343 }, { age: 65, prob: 0.011018 }, { age: 66, prob: 0.011743 },
+                { age: 67, prob: 0.012532 }, { age: 68, prob: 0.013512 }, { age: 69, prob: 0.014684 },
+                { age: 70, prob: 0.016025 }, { age: 71, prob: 0.017468 }, { age: 72, prob: 0.019195 },
+                { age: 73, prob: 0.021195 }, { age: 74, prob: 0.023452 }, { age: 75, prob: 0.025980 },
+                { age: 76, prob: 0.029153 }, { age: 77, prob: 0.032394 }, { age: 78, prob: 0.035888 },
+                { age: 79, prob: 0.039676 }, { age: 80, prob: 0.044156 }, { age: 81, prob: 0.049087 },
+                { age: 82, prob: 0.054635 }, { age: 83, prob: 0.061066 }, { age: 84, prob: 0.068431 },
+                { age: 85, prob: 0.076841 }, { age: 86, prob: 0.086205 }, { age: 87, prob: 0.096851 },
+                { age: 88, prob: 0.109019 }, { age: 89, prob: 0.121867 }, { age: 90, prob: 0.135805 },
+                { age: 91, prob: 0.151108 }, { age: 92, prob: 0.168020 }, { age: 93, prob: 0.186340 },
+                { age: 94, prob: 0.206432 }, { age: 95, prob: 0.228086 }, { age: 96, prob: 0.250406 },
+                { age: 97, prob: 0.273699 }, { age: 98, prob: 0.296984 }, { age: 99, prob: 0.319502 },
+                { age: 100, prob: 0.342716 }, { age: 101, prob: 0.366532 }, { age: 102, prob: 0.390844 },
+                { age: 103, prob: 0.415531 }, { age: 104, prob: 0.440463 }, { age: 105, prob: 0.466891 },
+                { age: 106, prob: 0.494904 }, { age: 107, prob: 0.524599 }, { age: 108, prob: 0.556075 },
+                { age: 109, prob: 0.589439 }, { age: 110, prob: 0.624805 }, { age: 115, prob: 0.827531 },
+                { age: 119, prob: 1.000000 }
             ]
         };
 
@@ -781,7 +835,7 @@
             const sex = document.getElementById('sex').value;
             const expectedReturn = parseFloat(document.getElementById('expectedReturn').value) / 100;
 
-            const numSimulations = 1000;
+            const numSimulations = 10000;
             const years = lifeExpectancy;
             const results = [];
 
@@ -894,6 +948,7 @@
             // Calculate percentiles for each year
             const years = lifeExpectancy;
             const percentiles = [];
+            let cumulativeSurvival = 1.0; // Start with 100% alive
 
             for (let year = 0; year <= years; year++) {
                 const yearBalances = [];
@@ -909,26 +964,38 @@
                 
                 yearBalances.sort((a, b) => a - b);
                 
-                // Calculate probability of death at this age
-                const deathProb = getMortalityProb(retirementAge + year, sex);
+                // Calculate ANNUAL probability of death at this age
+                const annualDeathProb = getMortalityProb(retirementAge + year, sex);
                 
-                // The remaining probability (alive) is split among financial outcomes
-                const aliveProb = 1 - deathProb;
+                // Update cumulative survival probability
+                cumulativeSurvival *= (1 - annualDeathProb);
+                
+                // Cumulative probability of being dead by this age
+                const cumulativeDeathProb = 1 - cumulativeSurvival;
+                
+                // The probability of being alive at this age
+                const aliveProb = cumulativeSurvival;
                 
                 // Among those alive, calculate financial outcome probabilities
                 const totalSims = yearBalances.length;
                 const numBroke = yearBalances.filter(b => b === 0).length;
                 const numBelow1x = yearBalances.filter(b => b > 0 && b < savings).length;
-                const numBetween1x2x = yearBalances.filter(b => b >= savings && b < savings * 2).length;
-                const numAbove2x = yearBalances.filter(b => b >= savings * 2).length;
+                const num1xTo2x = yearBalances.filter(b => b >= savings && b < savings * 2).length;
+                const num2xTo5x = yearBalances.filter(b => b >= savings * 2 && b < savings * 5).length;
+                const num5xTo10x = yearBalances.filter(b => b >= savings * 5 && b < savings * 10).length;
+                const numAbove10x = yearBalances.filter(b => b >= savings * 10).length;
                 
-                // These are the probabilities GIVEN that you're alive
+                // These are the probabilities GIVEN that you're alive (conditional probabilities)
                 const brokeGivenAlive = numBroke / totalSims;
                 const below1xGivenAlive = numBelow1x / totalSims;
-                const between1x2xGivenAlive = numBetween1x2x / totalSims;
-                const above2xGivenAlive = numAbove2x / totalSims;
+                const from1xTo2xGivenAlive = num1xTo2x / totalSims;
+                const from2xTo5xGivenAlive = num2xTo5x / totalSims;
+                const from5xTo10xGivenAlive = num5xTo10x / totalSims;
+                const above10xGivenAlive = numAbove10x / totalSims;
                 
-                // Convert to overall probabilities (multiplied by probability of being alive)
+                // Store both versions: 
+                // - raw: includes mortality (financial outcomes scaled by aliveProb)
+                // - normalized: conditional on being alive (always sums to 100%)
                 percentiles.push({
                     year,
                     age: retirementAge + year,
@@ -937,18 +1004,27 @@
                     p50: yearBalances[Math.floor(yearBalances.length * 0.5)],
                     p75: yearBalances[Math.floor(yearBalances.length * 0.75)],
                     p90: yearBalances[Math.floor(yearBalances.length * 0.9)],
-                    broke: brokeGivenAlive * aliveProb,
-                    below1x: below1xGivenAlive * aliveProb,
-                    between1x2x: between1x2xGivenAlive * aliveProb,
-                    above2x: above2xGivenAlive * aliveProb,
-                    mortality: deathProb
+                    // Raw probabilities (include mortality impact)
+                    brokeRaw: brokeGivenAlive * aliveProb,
+                    below1xRaw: below1xGivenAlive * aliveProb,
+                    from1xTo2xRaw: from1xTo2xGivenAlive * aliveProb,
+                    from2xTo5xRaw: from2xTo5xGivenAlive * aliveProb,
+                    from5xTo10xRaw: from5xTo10xGivenAlive * aliveProb,
+                    above10xRaw: above10xGivenAlive * aliveProb,
+                    // Normalized probabilities (conditional on being alive)
+                    brokeNorm: brokeGivenAlive,
+                    below1xNorm: below1xGivenAlive,
+                    from1xTo2xNorm: from1xTo2xGivenAlive,
+                    from2xTo5xNorm: from2xTo5xGivenAlive,
+                    from5xTo10xNorm: from5xTo10xGivenAlive,
+                    above10xNorm: above10xGivenAlive,
+                    mortality: cumulativeDeathProb  // Cumulative probability of being dead by this age
                 });
             }
 
-            // Calculate success rate (not broke at end, given you're alive)
+            // Calculate success rate (not broke at end, conditional on being alive)
             const finalYear = percentiles[percentiles.length - 1];
-            const aliveAtEnd = 1 - finalYear.mortality;
-            const brokeAtEnd = finalYear.broke / aliveAtEnd; // Convert back to conditional probability
+            const brokeAtEnd = finalYear.brokeNorm;
             const successRate = ((1 - brokeAtEnd) * 100).toFixed(1);
             const withdrawalRate = ((spending / savings) * 100).toFixed(2);
 
@@ -962,80 +1038,123 @@
         }
 
         // Render Plotly chart
+        let currentChartData = null; // Store data for re-rendering
+        let currentInitialSavings = null;
+
         function renderChart(data, initialSavings) {
+            // Store data for toggle function
+            currentChartData = data;
+            currentInitialSavings = initialSavings;
+            
+            const showMortality = document.getElementById('showMortality').checked;
             const ages = data.map(d => d.age);
 
-            // For each year, we need to show what percentage falls into each category
-            // All percentages should sum to 100%
+            // Choose which probabilities to use based on toggle
+            let brokeProb, below1xProb, from1xTo2xProb, from2xTo5xProb, from5xTo10xProb, above10xProb, deathProb;
+            
+            if (showMortality) {
+                // Use raw probabilities (include mortality impact, financial + death = 100%)
+                brokeProb = data.map(d => d.brokeRaw * 100);
+                below1xProb = data.map(d => d.below1xRaw * 100);
+                from1xTo2xProb = data.map(d => d.from1xTo2xRaw * 100);
+                from2xTo5xProb = data.map(d => d.from2xTo5xRaw * 100);
+                from5xTo10xProb = data.map(d => d.from5xTo10xRaw * 100);
+                above10xProb = data.map(d => d.above10xRaw * 100);
+                deathProb = data.map(d => d.mortality * 100);
+            } else {
+                // Use normalized probabilities (conditional on being alive, financial = 100%)
+                brokeProb = data.map(d => d.brokeNorm * 100);
+                below1xProb = data.map(d => d.below1xNorm * 100);
+                from1xTo2xProb = data.map(d => d.from1xTo2xNorm * 100);
+                from2xTo5xProb = data.map(d => d.from2xTo5xNorm * 100);
+                from5xTo10xProb = data.map(d => d.from5xTo10xNorm * 100);
+                above10xProb = data.map(d => d.above10xNorm * 100);
+                deathProb = null; // Don't show death layer
+            }
             
             const traces = [];
             
-            // Bottom layer: Broke (if alive)
-            const brokeProb = data.map(d => d.broke * 100);
+            // Bottom layer: Broke (red)
+            traces.push({
+                x: ages,
+                y: brokeProb,
+                type: 'scatter',
+                mode: 'none',
+                name: 'Broke',
+                fillcolor: 'rgba(214, 48, 49, 0.8)',
+                fill: 'tozeroy',
+                hovertemplate: 'Age %{x}<br>Broke: %{y:.1f}%<extra></extra>',
+                stackgroup: 'one'
+            });
             
-            // Below 1x (if alive and not broke)
-            const below1xProb = data.map(d => d.below1x * 100);
+            // Below initial (orange)
+            traces.push({
+                x: ages,
+                y: below1xProb,
+                type: 'scatter',
+                mode: 'none',
+                name: 'Below Initial',
+                fillcolor: 'rgba(253, 203, 110, 0.7)',
+                fill: 'tonexty',
+                hovertemplate: 'Age %{x}<br>Below Initial: %{y:.1f}%<extra></extra>',
+                stackgroup: 'one'
+            });
             
-            // 1x-2x (if alive and not broke)
-            const between1x2xProb = data.map(d => d.between1x2x * 100);
+            // 1-2x initial (light yellow/green)
+            traces.push({
+                x: ages,
+                y: from1xTo2xProb,
+                type: 'scatter',
+                mode: 'none',
+                name: '1-2x Initial',
+                fillcolor: 'rgba(255, 234, 167, 0.7)',
+                fill: 'tonexty',
+                hovertemplate: 'Age %{x}<br>1-2x Initial: %{y:.1f}%<extra></extra>',
+                stackgroup: 'one'
+            });
             
-            // Above 2x (if alive and not broke)
-            const above2xProb = data.map(d => d.above2x * 100);
+            // 2-5x initial (light green)
+            traces.push({
+                x: ages,
+                y: from2xTo5xProb,
+                type: 'scatter',
+                mode: 'none',
+                name: '2-5x Initial',
+                fillcolor: 'rgba(163, 228, 215, 0.7)',
+                fill: 'tonexty',
+                hovertemplate: 'Age %{x}<br>2-5x Initial: %{y:.1f}%<extra></extra>',
+                stackgroup: 'one'
+            });
             
-            // Top layer: Death probability
-            const deathProb = data.map(d => d.mortality * 100);
-
-            traces.push(
-                // Broke layer (bottom)
-                {
-                    x: ages,
-                    y: brokeProb,
-                    type: 'scatter',
-                    mode: 'none',
-                    name: 'Broke',
-                    fillcolor: 'rgba(214, 48, 49, 0.8)',
-                    fill: 'tozeroy',
-                    hovertemplate: 'Age %{x}<br>Broke: %{y:.1f}%<extra></extra>',
-                    stackgroup: 'one'
-                },
-                // Below initial
-                {
-                    x: ages,
-                    y: below1xProb,
-                    type: 'scatter',
-                    mode: 'none',
-                    name: 'Below Initial',
-                    fillcolor: 'rgba(253, 203, 110, 0.7)',
-                    fill: 'tonexty',
-                    hovertemplate: 'Age %{x}<br>Below Initial: %{y:.1f}%<extra></extra>',
-                    stackgroup: 'one'
-                },
-                // 1-2x initial
-                {
-                    x: ages,
-                    y: between1x2xProb,
-                    type: 'scatter',
-                    mode: 'none',
-                    name: '1-2x Initial',
-                    fillcolor: 'rgba(0, 184, 148, 0.6)',
-                    fill: 'tonexty',
-                    hovertemplate: 'Age %{x}<br>1-2x Initial: %{y:.1f}%<extra></extra>',
-                    stackgroup: 'one'
-                },
-                // 2x+ initial
-                {
-                    x: ages,
-                    y: above2xProb,
-                    type: 'scatter',
-                    mode: 'none',
-                    name: '2x+ Initial',
-                    fillcolor: 'rgba(0, 184, 148, 0.9)',
-                    fill: 'tonexty',
-                    hovertemplate: 'Age %{x}<br>2x+ Initial: %{y:.1f}%<extra></extra>',
-                    stackgroup: 'one'
-                },
-                // Death (top layer)
-                {
+            // 5-10x initial (medium green)
+            traces.push({
+                x: ages,
+                y: from5xTo10xProb,
+                type: 'scatter',
+                mode: 'none',
+                name: '5-10x Initial',
+                fillcolor: 'rgba(0, 184, 148, 0.7)',
+                fill: 'tonexty',
+                hovertemplate: 'Age %{x}<br>5-10x Initial: %{y:.1f}%<extra></extra>',
+                stackgroup: 'one'
+            });
+            
+            // 10x+ initial (dark green)
+            traces.push({
+                x: ages,
+                y: above10xProb,
+                type: 'scatter',
+                mode: 'none',
+                name: '10x+ Initial',
+                fillcolor: 'rgba(0, 148, 117, 0.9)',
+                fill: 'tonexty',
+                hovertemplate: 'Age %{x}<br>10x+ Initial: %{y:.1f}%<extra></extra>',
+                stackgroup: 'one'
+            });
+            
+            // Death layer (only if showing mortality)
+            if (showMortality && deathProb) {
+                traces.push({
                     x: ages,
                     y: deathProb,
                     type: 'scatter',
@@ -1045,8 +1164,8 @@
                     fill: 'tonexty',
                     hovertemplate: 'Age %{x}<br>Death: %{y:.1f}%<extra></extra>',
                     stackgroup: 'one'
-                }
-            );
+                });
+            }
 
             const layout = {
                 title: '',
@@ -1087,6 +1206,13 @@
             };
 
             Plotly.newPlot('chart', traces, layout, config);
+        }
+
+        // Toggle mortality display
+        function toggleMortality() {
+            if (currentChartData) {
+                renderChart(currentChartData, currentInitialSavings);
+            }
         }
 
         // Reset form
