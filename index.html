@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Can You Retire? - Retirement Calculator</title>
+    <link href="https://fonts.googleapis.com/css2?family=Crimson+Pro:wght@400;600;700&family=DM+Sans:wght@400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/styles.css">
+    <script src="https://cdn.jsdelivr.net/npm/plotly.js@2.27.0/dist/plotly.min.js"></script>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Can You Retire?</h1>
+            <p class="subtitle" style="max-width: 900px; margin: 0 auto; line-height: 1.8;">
+                This Monte Carlo retirement calculator runs <strong>10,000 simulations</strong> of your retirement using historical market data from 1871-2024. 
+                It models stock, bond, and cash returns with realistic volatility and inflation, then shows the probability of different outcomes over your retirement years. 
+                The chart visualizes your chances of running out of money (red), maintaining your savings (yellow/green), or growing your wealth (dark green), 
+                alongside actuarial mortality probabilities (gray). <strong>Toggle "Show Mortality"</strong> to switch between viewing all outcomes including death (default), 
+                or normalized financial outcomes that always sum to 100% (conditional on survival).
+            </p>
+        </header>
+
+        <div class="main-grid">
+            <!-- Left Sidebar - Inputs -->
+            <div class="card">
+                <div class="card-header">Your Scenario</div>
+
+                <!-- Annual Return Assumption -->
+                <div class="input-group">
+                    <label>Expected Annual Return <span class="label-hint">(above inflation)</span></label>
+                    <div class="input-suffix">
+                        <input type="number" id="expectedReturn" value="5.0" min="0" max="10" step="0.1" onchange="calculate()">
+                    </div>
+                    <p class="help-text">Conservative: 3-4%, Moderate: 5-6%, Aggressive: 7-8%</p>
+                </div>
+
+                <!-- Basic Info -->
+                <div class="input-group">
+                    <label>Current Age</label>
+                    <input type="number" id="currentAge" value="40" min="18" max="100" onchange="calculate()">
+                </div>
+
+                <div class="input-group">
+                    <label>Retirement Age</label>
+                    <input type="number" id="retirementAge" value="50" min="18" max="100" onchange="calculate()">
+                </div>
+
+                <div class="input-group">
+                    <label>Life Expectancy <span class="label-hint">(years to plan for)</span></label>
+                    <input type="number" id="lifeExpectancy" value="40" min="1" max="70" onchange="calculate()">
+                </div>
+
+                <div class="input-group">
+                    <label>Sex</label>
+                    <select id="sex" onchange="calculate()">
+                        <option value="male">Male</option>
+                        <option value="female">Female</option>
+                    </select>
+                </div>
+
+                <!-- Portfolio -->
+                <div class="input-group">
+                    <label>Current Savings</label>
+                    <div class="input-prefix">
+                        <input type="number" id="savings" value="1000000" min="0" step="10000" onchange="updateSavings()">
+                    </div>
+                </div>
+
+                <div class="input-group">
+                    <label>Annual Spending Needed <span class="label-hint">(in retirement)</span></label>
+                    <div class="input-prefix">
+                        <input type="number" id="spending" value="40000" min="0" step="1000" onchange="updateFromSpending()">
+                    </div>
+                </div>
+
+                <div class="input-group">
+                    <label>OR Withdrawal Rate <span class="label-hint">(% of savings)</span></label>
+                    <div class="input-suffix">
+                        <input type="number" id="withdrawalRateInput" value="4.0" min="0" max="20" step="0.1" onchange="updateFromWithdrawalRate()">
+                    </div>
+                </div>
+
+                <!-- Asset Allocation -->
+                <div class="input-group">
+                    <label>Stocks %</label>
+                    <div class="input-suffix">
+                        <input type="number" id="stocks" value="60" min="0" max="100" onchange="updateAllocation()">
+                    </div>
+                </div>
+
+                <div class="input-group">
+                    <label>Bonds %</label>
+                    <div class="input-suffix">
+                        <input type="number" id="bonds" value="30" min="0" max="100" onchange="updateAllocation()">
+                    </div>
+                </div>
+
+                <div class="input-group">
+                    <label>Cash %</label>
+                    <div class="input-suffix">
+                        <input type="number" id="cash" value="10" min="0" max="100" onchange="updateAllocation()">
+                    </div>
+                </div>
+
+                <!-- Advanced Settings (collapsible) -->
+                <details style="margin-top: 1.5rem;">
+                    <summary style="cursor: pointer; font-weight: 600; margin-bottom: 1rem; color: var(--navy);">Advanced Settings</summary>
+                    
+                    <div class="advanced-settings">
+                        <div class="input-group">
+                            <label>Tax Rate <span class="label-hint">(%)</span></label>
+                            <div class="input-suffix">
+                                <input type="number" id="taxRate" value="15" min="0" max="50" step="0.5" onchange="calculate()">
+                            </div>
+                        </div>
+
+                        <div class="input-group">
+                            <label>Annual Fees <span class="label-hint">(%)</span></label>
+                            <div class="input-suffix">
+                                <input type="number" id="fees" value="0.3" min="0" max="5" step="0.1" onchange="calculate()">
+                            </div>
+                        </div>
+
+                        <div class="input-group">
+                            <label>Spending Flexibility <span class="label-hint">(%)</span></label>
+                            <div class="input-suffix">
+                                <input type="number" id="flexibility" value="20" min="0" max="50" step="5" onchange="calculate()">
+                            </div>
+                        </div>
+
+                        <div class="input-group">
+                            <label>Portfolio Threshold <span class="label-hint">(%)</span></label>
+                            <div class="input-suffix">
+                                <input type="number" id="threshold" value="80" min="50" max="100" step="5" onchange="calculate()">
+                            </div>
+                        </div>
+                    </div>
+                </details>
+
+                <!-- Income/Expense Manager -->
+                <div class="income-expense-manager">
+                    <div class="card-header" style="font-size: 1.25rem; margin-bottom: 1rem;">Additional Streams</div>
+                    
+                    <div class="toggle-group">
+                        <button class="toggle-btn active" onclick="switchTab('income')">Income</button>
+                        <button class="toggle-btn" onclick="switchTab('expenses')">Expenses</button>
+                    </div>
+
+                    <!-- Income Tab -->
+                    <div id="income-tab" class="tab-content active" style="margin-top: 1rem;">
+                        <div id="income-list"></div>
+                        <button class="btn btn-secondary add-stream" onclick="addStream('income')">+ Add Income Stream</button>
+                    </div>
+
+                    <!-- Expenses Tab -->
+                    <div id="expenses-tab" class="tab-content" style="margin-top: 1rem;">
+                        <div id="expense-list"></div>
+                        <button class="btn btn-secondary add-stream" onclick="addStream('expense')">+ Add Expense Stream</button>
+                    </div>
+                </div>
+
+                <!-- Action Buttons -->
+                <div class="btn-group">
+                    <button class="btn btn-primary" style="flex: 1;" onclick="calculate()">Calculate</button>
+                    <button class="btn btn-secondary" onclick="reset()">Reset</button>
+                </div>
+            </div>
+
+            <!-- Right Side - Results -->
+            <div>
+                <!-- Results Summary -->
+                <div class="card">
+                    <div class="results-summary">
+                        <div class="stat-card">
+                            <div class="stat-value" id="successRate">--</div>
+                            <div class="stat-label">Success Rate</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value" id="withdrawalRate">--</div>
+                            <div class="stat-label">Withdrawal Rate</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value" id="medianBalance">--</div>
+                            <div class="stat-label">Median Final Balance</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Chart -->
+                <div class="card">
+                    <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
+                        <span>Probability Analysis</span>
+                        <label style="display: inline-flex; align-items: center; gap: 0.5rem; font-weight: normal; margin: 0; cursor: pointer; font-size: 0.9rem;">
+                            <input type="checkbox" id="showMortality" checked onchange="toggleMortality()" style="cursor: pointer;">
+                            <span>Show Mortality</span>
+                        </label>
+                    </div>
+                    <div id="chart"></div>
+                    <div class="help-text" style="margin-top: 1rem;">
+                        This chart shows the probability of different portfolio outcomes over your retirement years. Green indicates wealth growth, yellow shows portfolio decline, red indicates running out of money, and gray shows probability of death. Toggle mortality to see financial outcomes normalized to 100%.
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Load JavaScript modules in order -->
+    <script src="js/constants.js"></script>
+    <script src="js/state.js"></script>
+    <script src="js/utils.js"></script>
+    <script src="js/simulation.js"></script>
+    <script src="js/calculator.js"></script>
+    <script src="js/chart.js"></script>
+    <script src="js/ui-handlers.js"></script>
+    <script src="js/init.js"></script>
+</body>
+</html>
